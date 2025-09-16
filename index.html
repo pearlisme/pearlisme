@@ -299,7 +299,7 @@
         if (canvas) {
           const ctx = canvas.getContext('2d');
           let particles = [];
-          const mouse = { x: -200, y: -200, radius: 150 };
+          const mouse = { x: undefined, y: undefined, radius: 150 };
 
           const resizeCanvas = () => {
             canvas.width = window.innerWidth;
@@ -315,16 +315,19 @@
               if (this.y > canvas.height || this.y < 0) this.speedY = -this.speedY;
               this.x += this.speedX; 
               this.y += this.speedY;
-              const dx = this.x - mouse.x;
-              const dy = this.y - mouse.y;
-              const distance = Math.hypot(dx, dy);
-              if (distance < mouse.radius) {
-                const force = (mouse.radius - distance) / mouse.radius;
-                const forceDirectionX = dx / distance;
-                const forceDirectionY = dy / distance;
-                const repulsionFactor = 3;
-                this.x += forceDirectionX * force * repulsionFactor;
-                this.y += forceDirectionY * force * repulsionFactor;
+
+              if (mouse.x !== undefined && mouse.y !== undefined) {
+                const dx = this.x - mouse.x;
+                const dy = this.y - mouse.y;
+                const distance = Math.hypot(dx, dy);
+                if (distance < mouse.radius) {
+                  const force = (mouse.radius - distance) / mouse.radius;
+                  const forceDirectionX = dx / distance;
+                  const forceDirectionY = dy / distance;
+                  const repulsionFactor = 3;
+                  this.x += forceDirectionX * force * repulsionFactor;
+                  this.y += forceDirectionY * force * repulsionFactor;
+                }
               }
             }
             draw() {
@@ -345,43 +348,38 @@
           };
 
           const connect = () => {
+            if (mouse.x === undefined || mouse.y === undefined) return;
+
             for (let a = 0; a < particles.length; a++) {
               for (let b = a; b < particles.length; b++) {
-                const distance = ((particles[a].x - particles[b].x) * (particles[a].x - particles[b].x)) + ((particles[a].y - particles[b].y) * (particles[a].y - particles[b].y));
-                if (distance < (canvas.width / 7) * (canvas.height / 7)) {
-                  const opacity = 1 - distance / 20000;
-                  const distToMouseA = Math.hypot(particles[a].x - mouse.x, particles[a].y - mouse.y);
-                  if (distToMouseA < mouse.radius) {
-                    ctx.strokeStyle = `rgba(34, 211, 238, ${opacity})`;
+                const distance = Math.hypot(particles[a].x - particles[b].x, particles[a].y - particles[b].y);
+                const distToMouseA = Math.hypot(particles[a].x - mouse.x, particles[a].y - mouse.y);
+                
+                if (distToMouseA < mouse.radius * 2 && distance < 120) {
+                    const opacity = 1 - (distance / 120);
+                    ctx.strokeStyle = `rgba(34, 211, 238, ${opacity * 0.7})`;
                     ctx.lineWidth = 1;
                     ctx.shadowBlur = 8;
                     ctx.shadowColor = 'rgba(34, 211, 238, 0.8)';
-                  } else {
-                    ctx.strokeStyle = `rgba(148, 163, 184, ${opacity})`;
-                    ctx.lineWidth = 0.5;
+                    ctx.beginPath();
+                    ctx.moveTo(particles[a].x, particles[a].y);
+                    ctx.lineTo(particles[b].x, particles[b].y);
+                    ctx.stroke();
                     ctx.shadowBlur = 0;
-                  }
-                  ctx.beginPath();
-                  ctx.moveTo(particles[a].x, particles[a].y);
-                  ctx.lineTo(particles[b].x, particles[b].y);
-                  ctx.stroke();
-                  ctx.shadowBlur = 0;
                 }
               }
             }
+
             for (let i = 0; i < particles.length; i++) {
               const distance = Math.hypot(particles[i].x - mouse.x, particles[i].y - mouse.y);
               if (distance < mouse.radius * 1.5) {
                 const opacity = 1 - distance / (mouse.radius * 1.5);
                 ctx.strokeStyle = `rgba(34, 211, 238, ${opacity})`;
                 ctx.lineWidth = 1;
-                ctx.shadowBlur = 10;
-                ctx.shadowColor = 'rgba(34, 211, 238, 0.8)';
                 ctx.beginPath();
                 ctx.moveTo(mouse.x, mouse.y);
                 ctx.lineTo(particles[i].x, particles[i].y);
                 ctx.stroke();
-                ctx.shadowBlur = 0;
               }
             }
           };
@@ -395,6 +393,7 @@
 
           window.addEventListener('resize', () => { resizeCanvas(); init(); });
           window.addEventListener('mousemove', (event) => { mouse.x = event.x; mouse.y = event.y; });
+          window.addEventListener('mouseout', () => { mouse.x = undefined; mouse.y = undefined; });
           
           resizeCanvas(); init(); animate();
         }
@@ -431,27 +430,25 @@
 
         // 2. Active link highlighting on scroll
         const navHighlightObserver = new IntersectionObserver(entries => {
+            let anySectionIntersecting = false;
             entries.forEach(entry => {
                 const id = entry.target.getAttribute('id');
                 const navLink = document.querySelector(`nav a[href="#${id}"]`);
-                
-                if (entry.isIntersecting) {
-                    // Reset all links
-                    navLinks.forEach(link => {
-                      link.classList.remove('text-accent-cyan');
-                      link.classList.add('text-light-slate');
-                    });
-                    // Activate the intersecting one if it's in the nav
-                    if(navLink){
-                      navLink.classList.add('text-accent-cyan');
-                      navLink.classList.remove('text-light-slate');
-                    }
+                if (entry.isIntersecting && navLink) {
+                    navLinks.forEach(link => link.classList.remove('text-accent-cyan'));
+                    navLink.classList.add('text-accent-cyan');
+                    anySectionIntersecting = true;
                 }
             });
-        }, { rootMargin: "-50% 0px -50% 0px" }); // A horizontal line in the middle of the viewport
+            if (!anySectionIntersecting && window.scrollY < window.innerHeight) {
+                 navLinks.forEach(link => link.classList.remove('text-accent-cyan'));
+            }
+        }, { rootMargin: "-50% 0px -50% 0px" });
 
         allSections.forEach(section => {
-            navHighlightObserver.observe(section);
+            if (section.id !== 'hero') { // Don't observe hero for nav highlighting
+              navHighlightObserver.observe(section);
+            }
         });
         
         // --- Scroll Animations ---
